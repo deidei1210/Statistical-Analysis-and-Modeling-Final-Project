@@ -61,6 +61,30 @@ ggplot(stock_data, aes(x = Date, y = Close.Last, color = Company)) +
   geom_line() +
   labs(title = "Stock Price Over Time for All Companies", x = "Date", y = "Close Price") +
   theme(legend.position = "bottom")
+# 获取公司列表
+companies <- unique(stock_data$Company)
+
+library(zoo)
+
+# 设置移动平均的窗口大小，例如30天
+window_size <- 30
+
+# 为每个公司创建单独的股价图，包括移动平均线
+for (company in unique(stock_data$Company)) {
+  company_data <- filter(stock_data, Company == company)
+
+  # 计算移动平均
+  company_data$MA <- rollmean(company_data$Close.Last, window_size, align = "right", fill = NA)
+
+  # 绘制股价图和移动平均线
+  p <- ggplot(company_data, aes(x = Date)) +
+       geom_line(aes(y = Close.Last), color = "blue") +
+       geom_line(aes(y = MA), color = "red", na.rm = TRUE) +
+       labs(title = paste(company, "Stock Price with Moving Average"), x = "Date", y = "Close Price") +
+       theme(legend.position = "bottom")
+  print(p)
+}
+
 ```
 ```{r}
 # 为相关性分析准备数据
