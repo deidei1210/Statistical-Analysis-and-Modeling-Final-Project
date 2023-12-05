@@ -98,7 +98,9 @@ corr_matrix <- cor(stock_data_wide[, -1], use="complete.obs")
 # 可视化相关性矩阵
 heatmap(corr_matrix, main="Stock Price Correlation Between Companies", Colv=NA, Rowv=NA)
 print(corr_matrix)
+
 ```
+
 ```{r}
 # 对每个公司的数据进行季节性分解
 for (company in unique(stock_data$Company)) {
