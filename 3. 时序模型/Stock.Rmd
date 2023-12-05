@@ -9,13 +9,12 @@ Try executing this chunk by clicking the *Run* button within the chunk or by pla
 
 ```{r}
 # 安装和加载必要的库
-
 library(ggplot2)
 library(dplyr)
 library(tidyr)
 
 # 读取数据
-stock_data <- read.csv("stock_data.csv", stringsAsFactors = FALSE)
+stock_data <- read.csv("stock.csv", stringsAsFactors = FALSE)
 
 # 数据预处理
 stock_data$Date <- as.Date(stock_data$Date, format="%m/%d/%Y")
@@ -24,13 +23,18 @@ stock_data$Open <- as.numeric(gsub("\\$", "", stock_data$Open))
 stock_data$High <- as.numeric(gsub("\\$", "", stock_data$High))
 stock_data$Low <- as.numeric(gsub("\\$", "", stock_data$Low))
 
+# 确保每个公司每天只有一个数据点
+# 如果有多个数据点，则取平均值
+stock_data <- stock_data %>%
+  group_by(Date, Company) %>%
+  summarise(Close.Last = mean(Close.Last, na.rm = TRUE))
+
 # 可视化AAPL股价随时间的变化
 ggplot(stock_data %>% filter(Company == "AAPL"), aes(x=Date, y=Close.Last)) +
   geom_line() +
   labs(title = "AAPL Stock Price Over Time", x = "Date", y = "Close Price")
 
-# 相关性分析
-# 转换数据结构以方便计算相关性
+# 为相关性分析准备数据
 stock_data_wide <- stock_data %>%
   select(Date, Company, Close.Last) %>%
   spread(key = Company, value = Close.Last)
