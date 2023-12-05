@@ -1,0 +1,50 @@
+---
+title: "Stock"
+output: html_notebok
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+# 安装和加载必要的库
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# 读取数据
+stock_data <- read.csv("stock_data.csv", stringsAsFactors = FALSE)
+
+# 数据预处理
+stock_data$Date <- as.Date(stock_data$Date, format="%m/%d/%Y")
+stock_data$Close.Last <- as.numeric(gsub("\\$", "", stock_data$Close.Last))
+stock_data$Open <- as.numeric(gsub("\\$", "", stock_data$Open))
+stock_data$High <- as.numeric(gsub("\\$", "", stock_data$High))
+stock_data$Low <- as.numeric(gsub("\\$", "", stock_data$Low))
+
+# 可视化AAPL股价随时间的变化
+ggplot(stock_data %>% filter(Company == "AAPL"), aes(x=Date, y=Close.Last)) +
+  geom_line() +
+  labs(title = "AAPL Stock Price Over Time", x = "Date", y = "Close Price")
+
+# 相关性分析
+# 转换数据结构以方便计算相关性
+stock_data_wide <- stock_data %>%
+  select(Date, Company, Close.Last) %>%
+  spread(key = Company, value = Close.Last)
+
+# 计算相关性
+corr_matrix <- cor(stock_data_wide[, -1], use="complete.obs")
+
+# 可视化相关性矩阵
+heatmap(corr_matrix, main="Stock Price Correlation Between Companies", Colv=NA, Rowv=NA)
+
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
