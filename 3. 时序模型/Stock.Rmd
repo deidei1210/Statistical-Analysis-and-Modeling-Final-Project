@@ -31,12 +31,13 @@ stock_data$Volume <- as.numeric(gsub(",", "", stock_data$Volume))
 stock_data <- na.omit(stock_data)
 
 # 处理异常值
-# 这需要具体数据的业务知识，例如确定股价和交易量的合理范围
-# 示例代码（请根据实际数据调整）:
 stock_data <- stock_data %>% 
   filter(Close.Last > 0, Open > 0, High > 0, Low > 0, Volume > 0)
 # 数据去重
 stock_data <- distinct(stock_data)
+# 只关心'Company'和'Date'列的重复值
+stock_data <- distinct(stock_data, Company, Date, .keep_all = TRUE)
+
 
 # 为每个公司绘制箱线图（以'Close.Last'为例）
 ggplot(stock_data, aes(x = Company, y = Close.Last)) +
@@ -49,21 +50,14 @@ ggplot(stock_data, aes(x = Volume, y = Close.Last, color = Company)) +
   labs(title = "Scatter Plot of Volume vs. Close Price", x = "Volume", y = "Close/Last Price")
 
 
-# 确保每个公司每天只有一个数据点
-# 如果有多个数据点，则取平均值
-stock_data <- stock_data %>%
-  group_by(Date, Company) %>%
-  summarise(Close.Last = mean(Close.Last, na.rm = TRUE))
 
 
 
-
-
-
-# 可视化AAPL股价随时间的变化
-ggplot(stock_data %>% filter(Company == "AAPL"), aes(x=Date, y=Close.Last)) +
+# 可视化所有公司股价随时间的变化
+ggplot(stock_data, aes(x = Date, y = Close.Last, color = Company)) +
   geom_line() +
-  labs(title = "AAPL Stock Price Over Time", x = "Date", y = "Close Price")
+  labs(title = "Stock Price Over Time for All Companies", x = "Date", y = "Close Price") +
+  theme(legend.position = "bottom")
 
 # 为相关性分析准备数据
 stock_data_wide <- stock_data %>%
