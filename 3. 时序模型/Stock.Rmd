@@ -97,6 +97,33 @@ corr_matrix <- cor(stock_data_wide[, -1], use="complete.obs")
 
 # 可视化相关性矩阵
 heatmap(corr_matrix, main="Stock Price Correlation Between Companies", Colv=NA, Rowv=NA)
+print(corr_matrix)
+```
+```{r}
+# 对每个公司的数据进行季节性分解
+for (company in unique(stock_data$Company)) {
+  company_data <- filter(stock_data, Company == company)
+
+  # 将价格数据转换为时间序列对象
+  ts_data <- ts(company_data$Close.Last, frequency=252)  # 假设一年有252个交易日
+
+  # STL分解
+  decomposed <- stl(ts_data, s.window="periodic")
+
+  # 提取季节性成分
+  seasonality <- decomposed$time.series[, "seasonal"]
+
+  # 将季节性数据转换为数据框
+  seasonal_data <- data.frame(Date = company_data$Date, Seasonality = seasonality)
+  
+  # 绘制季节性图
+  pic<-ggplot(seasonal_data, aes(x = Date, y = Seasonality)) +
+    geom_line() +
+    labs(title = paste(company, "Seasonal Variation in Stock Price"), x = "Date", y = "Seasonality") +
+    theme(legend.position = "bottom")
+    print(pic)
+}
+
 ```
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
