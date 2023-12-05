@@ -97,6 +97,7 @@ corr_matrix <- cor(stock_data_wide[, -1], use="complete.obs")
 
 # 可视化相关性矩阵
 heatmap(corr_matrix, main="Stock Price Correlation Between Companies", Colv=NA, Rowv=NA)
+print(corr_matrix)
 ```
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
