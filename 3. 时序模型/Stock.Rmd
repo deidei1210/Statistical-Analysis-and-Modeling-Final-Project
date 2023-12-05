@@ -16,10 +16,10 @@ library(tidyr)
 # 读取数据
 stock_data <- read.csv("stock.csv", stringsAsFactors = FALSE)
 
-# 数据预处理
+# 数据预处理：统一日期格式
 stock_data$Date <- as.Date(stock_data$Date, format="%m/%d/%Y")
 
-# 清理并转换股票价格和交易量数据
+# 清理并转换股票价格和交易量数据：将价格变成数据
 price_columns <- c("Close.Last", "Open", "High", "Low")
 for (col in price_columns) {
   stock_data[[col]] <- as.numeric(gsub("\\$", "", stock_data[[col]]))
@@ -30,7 +30,7 @@ stock_data$Volume <- as.numeric(gsub(",", "", stock_data$Volume))
 # 这里的策略是删除任何包含缺失值的行
 stock_data <- na.omit(stock_data)
 
-# 处理异常值
+# 处理异常值，保证所有数据都是非负数
 stock_data <- stock_data %>% 
   filter(Close.Last > 0, Open > 0, High > 0, Low > 0, Volume > 0)
 # 数据去重
@@ -44,21 +44,25 @@ ggplot(stock_data, aes(x = Company, y = Close.Last)) +
   geom_boxplot() +
   labs(title = "Boxplot of Closing Prices for Each Company", x = "Company", y = "Close/Last Price")
 
+
+```
+```{r}
+
 # 为每个公司绘制股价和交易量的散点图
 ggplot(stock_data, aes(x = Volume, y = Close.Last, color = Company)) +
   geom_point() +
   labs(title = "Scatter Plot of Volume vs. Close Price", x = "Volume", y = "Close/Last Price")
 
 
-
-
-
+```
+```{r}
 # 可视化所有公司股价随时间的变化
 ggplot(stock_data, aes(x = Date, y = Close.Last, color = Company)) +
   geom_line() +
   labs(title = "Stock Price Over Time for All Companies", x = "Date", y = "Close Price") +
   theme(legend.position = "bottom")
-
+```
+```{r}
 # 为相关性分析准备数据
 stock_data_wide <- stock_data %>%
   select(Date, Company, Close.Last) %>%
@@ -69,7 +73,6 @@ corr_matrix <- cor(stock_data_wide[, -1], use="complete.obs")
 
 # 可视化相关性矩阵
 heatmap(corr_matrix, main="Stock Price Correlation Between Companies", Colv=NA, Rowv=NA)
-
 ```
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
