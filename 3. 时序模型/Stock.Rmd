@@ -233,48 +233,42 @@ head(diff_stock_data)
 ```
 
 ```{r}
-
-# 载入必要的库
 library(forecast)
 library(dplyr)
+library(tseries)
 
-# 获取所有公司的列表
 company_list <- unique(diff_stock_data$Company)
-
-# 初始化一个列表来存储每个公司的模型结果
 company_forecasts <- list()
 
-# 对每个公司进行循环
-for(company in company_list) {
-  # 提取当前公司的差分后数据
+for (company in company_list) {
   company_data <- filter(diff_stock_data, Company == company)
   
-  # 将差分后的收盘价转换为时间序列对象
-  ts_data <- ts(company_data$DiffClose)
-  
-  # 计算训练集数据点的数量
-  train_size <- floor(length(ts_data) * 0.8)
-  
-  # 创建训练集和测试集
+  # 反转时间序列，使得最新的数据在最后
+  ts_data <- ts(rev(company_data$DiffClose))
+
+  # 检查数据是否平稳
+  if (adf.test(ts_data, alternative = "stationary")$p.value > 0.05) {
+    ts_data <- diff(ts_data, differences = 1)
+  }
+
+  # 设置训练集和测试集的大小
+  train_size <- floor(length(ts_data) * 0.85)
   train_set <- ts_data[1:train_size]
-  test_set <- ts_data[(train_size+1):length(ts_data)]
+  test_set <- ts_data[(train_size + 1):length(ts_data)]
 
-  if(length(test_set) > 0) {
-    # 使用auto.arima函数来自动选择合适的ARIMA模型
-    fit <- auto.arima(train_set)
+  if (length(test_set) > 0) {
+    fit <- auto.arima(train_set, stepwise = FALSE, approximation = FALSE)
 
-    # 进行预测
     forecast_result <- forecast(fit, h = length(test_set))
 
-    # 将预测结果添加到列表中
     company_forecasts[[company]] <- list(
       Model = fit,
       Forecast = forecast_result,
-      Accuracy = if(length(forecast_result$mean) == length(test_set)) {
-                  accuracy(forecast_result, test_set)
-                } else {
-                  NA
-                }
+      Accuracy = if (length(forecast_result$mean) == length(test_set)) {
+                   accuracy(forecast_result, test_set)
+                 } else {
+                   NA
+                 }
     )
   } else {
     company_forecasts[[company]] <- list(
@@ -285,7 +279,7 @@ for(company in company_list) {
   }
 }
 
-# 遍历company_forecasts列表并打印每个公司的预测结果
+# 打印每个公司的预测结果
 for (company in company_list) {
   forecast_info <- company_forecasts[[company]]
   cat("公司:", company, "\n")
@@ -300,57 +294,106 @@ for (company in company_list) {
 
 
 ```
+```{r}
+library(forecast)
+library(dplyr)
+library(tseries)
+
+company_list <- unique(diff_stock_data$Company)
+company_forecasts <- list()
+
+window_size <- 30  # 窗口大小，可以根据需要调整
+forecast_length <- 1  # 预测步长，通常为1
+
+for (company in company_list) {
+  company_data <- filter(diff_stock_data, Company == company)
+  ts_data <- ts(rev(company_data$DiffClose))
+
+  # 确保时间序列是平稳的
+  if (adf.test(ts_data, alternative = "stationary")$p.value > 0.05) {
+    ts_data <- diff(ts_data, differences = 1)
+  }
+
+  total_length <- length(ts_data)
+  forecasts <- list()
+
+  for (start in seq(1, total_length - window_size - forecast_length)) {
+    train_set <- ts_data[start:(start + window_size - 1)]
+    fit <- auto.arima(train_set, stepwise = FALSE, approximation = FALSE)
+    forecast_result <- forecast(fit, h = forecast_length)
+
+    forecasts[[start]] <- forecast_result
+  }
+
+  company_forecasts[[company]] <- forecasts
+}
+
+# 打印每个公司的预测结果
+for (company in company_list) {
+  cat("公司:", company, "\n")
+  forecasts <- company_forecasts[[company]]
+  for (f in forecasts) {
+    cat("预测结果:\n")
+    print(f)
+  }
+  cat("\n")
+}
+
+```
 
 
 
 ```{r}
-# 获取所有公司的列表
-company_list <- unique(diff_stock_data$Company)
+library(ggplot2)
+# 确保导入forecast包
+library(forecast)
 
-# 初始化一个列表来存储每个公司的时间范围
-company_time_ranges <- list()
+forecast_period <- 180
 
-# 对每个公司进行循环
+# 遍历每个公司进行预测并绘制图表
 for (company in company_list) {
-  # 使用subset选择当前公司的数据
-  company_data <- subset(diff_stock_data, Company == company)
+  # 获取当前公司的模型信息
+  forecast_info <- company_forecasts[[company]]
   
-  # 计算训练集数据点的数量
-  train_size <- floor(length(company_data$DiffClose) * 0.85)
+  # 确定历史数据的最后一个时间点作为起始点
+  last_observation <- max(stock_data$Date[stock_data$Company == company])
   
-  # 将日期数字转换为Date对象
-  dates <- as.Date(company_data$Date, origin = "1970-01-01")
+  # 生成未来半年的日期，从最后一个观察点的下一天开始
+  # 注意：此处应考虑实际的交易日历
+  future_dates <- seq(from = last_observation + 1, by = "days", length.out = forecast_period)
   
-  # 确定训练集的时间范围
-  train_start_date <- min(dates)
-  train_end_date <- dates[train_size]
+  # 使用模型进行未来半年的预测
+  forecast_values <- forecast(forecast_info$Model, h = forecast_period)
   
-  # 确定测试集的时间范围
-  test_start_date <- dates[train_size + 1]
-  test_end_date <- max(dates)
+  # 创建数据框，包括日期和预测的股票价格
+  historical_data <- subset(stock_data, Company == company, select = c("Date", "Close.Last"))
   
-  # 格式化日期为字符串
-  formatted_train_start <- format(train_start_date, "%Y-%m-%d")
-  formatted_train_end <- format(train_end_date, "%Y-%m-%d")
-  formatted_test_start <- format(test_start_date, "%Y-%m-%d")
-  formatted_test_end <- format(test_end_date, "%Y-%m-%d")
+  # 计算预测值的逆差分
+  last_historical_price <- head(historical_data$Close.Last, 1)
+  forecasted_diff <- forecast_values$mean
+  forecasted_price <- cumsum(c(last_historical_price, forecasted_diff[-1])) 
   
-  # 存储时间范围信息到列表中
-  company_time_ranges[[company]] <- list(
-    TrainStart = formatted_train_start,
-    TrainEnd = formatted_train_end,
-    TestStart = formatted_test_start,
-    TestEnd = formatted_test_end
+  forecast_data <- data.frame(
+    Date = c(historical_data$Date, future_dates[-1]),
+    Price = c(historical_data$Close.Last, forecasted_price[-1]),
+    Type = c(rep("Historical", nrow(historical_data)), rep("Forecasted", length(future_dates) - 1)),
+    Company = company
   )
+  
+  # 创建ggplot对象并绘制折线图
+  p <- ggplot(forecast_data, aes(x = Date, y = Price, color = Type)) +
+    geom_line() +
+    labs(title = paste("Stock Price Forecast for", company),
+         x = "Date",
+         y = "Stock Price") +
+    scale_color_manual(values = c("blue", "red")) +
+    theme_minimal()
+  
+  print(p)
 }
 
-# 打印每个公司的时间范围
-for (company in company_list) {
-  time_range <- company_time_ranges[[company]]
-  cat("公司:", company, "\n")
-  cat("训练集时间范围:", time_range$TrainStart, "到", time_range$TrainEnd, "\n")
-  cat("测试集时间范围:", time_range$TestStart, "到", time_range$TestEnd, "\n\n")
-}
+
+
 
 ```
 
