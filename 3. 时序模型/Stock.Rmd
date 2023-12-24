@@ -37,6 +37,9 @@ stock_data <- stock_data %>%
 stock_data <- distinct(stock_data)
 # 只关心'Company'和'Date'列的重复值
 stock_data <- distinct(stock_data, Company, Date, .keep_all = TRUE)
+#计算每天股票的涨幅
+stock_data <- stock_data %>%
+  mutate(increaseRate = (Close.Last - Open) / Open)
 
 
 # 为每个公司绘制箱线图（以'Close.Last'为例）
@@ -44,7 +47,17 @@ ggplot(stock_data, aes(x = Company, y = Close.Last)) +
   geom_boxplot() +
   labs(title = "Boxplot of Closing Prices for Each Company", x = "Company", y = "Close/Last Price")
 
+ggplot(stock_data, aes(x = Company, y = Volume)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Volume for Each Company", x = "Company", y = "Volume")
 
+ggplot(stock_data, aes(x = Company, y = High)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of The Highest Prices for Each Company", x = "Company", y = "The Highest Price")
+
+ggplot(stock_data, aes(x = Company, y = Low)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of The Lowest Prices for Each Company", x = "Company", y = "The Lowest Price")
 ```
 ```{r}
 
