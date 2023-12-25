@@ -37,23 +37,10 @@ stock_data <- stock_data %>%
 stock_data <- distinct(stock_data)
 # 只关心'Company'和'Date'列的重复值
 stock_data <- distinct(stock_data, Company, Date, .keep_all = TRUE)
-
-# 计算每个公司的开盘价相对于上一个交易日的涨幅
+#计算每天股票的涨幅
 stock_data <- stock_data %>%
-  group_by(Company) %>%
-  arrange(Company, Date) %>%
-  mutate(OpenIncreaseRate = ((Open-lag(Close.Last)) / lag(Close.Last)))
+  mutate(increaseRate = (Close.Last - Open) / Open)
 
-
-# 计算每个公司的日收益率
-stock_data <- stock_data %>%
-  group_by(Company) %>%
-  arrange(Company, Date) %>%
-  mutate(IncreaseRate = ((Close.Last-lag(Close.Last)) / lag(Close.Last)))
-
-# 处理缺失值
-# 这里的策略是删除任何包含缺失值的行
-stock_data <- na.omit(stock_data)
 
 # 为每个公司绘制箱线图（以'Close.Last'为例）
 ggplot(stock_data, aes(x = Company, y = Close.Last)) +
@@ -75,10 +62,10 @@ ggplot(stock_data, aes(x = Company, y = Low)) +
 
 ```{r}
 
-# 为每个公司绘制和交易量的散点图
-ggplot(stock_data, aes(x = Volume, y = IncreaseRate, color = Company)) +
+# 为每个公司绘制股价和交易量的散点图
+ggplot(stock_data, aes(x = Volume, y = Close.Last, color = Company)) +
   geom_point() +
-  labs(title = "Scatter Plot of Volume vs. IncreaceRate", x = "Volume", y = "IncreaceRate")
+  labs(title = "Scatter Plot of Volume vs. Close Price", x = "Volume", y = "Close/Last Price")
 
 
 ```
@@ -198,13 +185,6 @@ plots_list
 
 ```
 
-```{r}
-# 为每个公司绘制OpenIncreaseRate和涨幅的散点图
-ggplot(stock_data, aes(x = OpenIncreaseRate, y = IncreaseRate, color = Company)) +
-  geom_point() +
-  labs(title = "Scatter Plot of OpenIncreaseRate vs. IncreaseRate", x = "OpenIncreaseRate", y = "IncreaseRate")
-
-```
 
 
 ```{r}
@@ -247,7 +227,7 @@ for(company in company_list) {
 # 将差分后的时间序列转换为普通向量
 diff_ts_vector <- as.vector(diff_ts)
 
-# 调整Date向量以匹配差分后的时间
+# 调整Date向量以匹配差分后的时间序列长度
 adjusted_dates <- company_data$Date[-seq_len(diff_count)]
 
 # 将差分后的数据添加到数据框
@@ -440,43 +420,37 @@ for (company in company_list) {
 ```
 
 
-
 #根据差值预测未来股票值
 ```{r}
 library(ggplot2)
+# 确保导入forecast包
 library(forecast)
-library(dplyr)
 
-forecast_period <- 10
-history_period <- 20  # 设置历史数据长度为20天
+forecast_period <- 180
 
 # 遍历每个公司进行预测并绘制图表
 for (company in company_list) {
   # 获取当前公司的模型信息
-  forecast_info <- company_forecasts_normal[[company]]
+  forecast_info <- company_forecasts[[company]]
   
   # 确定历史数据的最后一个时间点作为起始点
   last_observation <- max(stock_data$Date[stock_data$Company == company])
   
-  # 选取最近的历史数据，限制为20天
-  historical_data <- filter(stock_data, Company == company & Date > (last_observation - history_period))
-
-  # 生成未来10天的日期
+  # 生成未来半年的日期，从最后一个观察点的下一天开始
+  # 注意：此处应考虑实际的交易日历
   future_dates <- seq(from = last_observation + 1, by = "days", length.out = forecast_period)
   
-  # 使用模型进行未来10天的预测
+  # 使用模型进行未来半年的预测
   forecast_values <- forecast(forecast_info$Model, h = forecast_period)
   
+  # 创建数据框，包括日期和预测的股票价格
+  historical_data <- subset(stock_data, Company == company, select = c("Date", "Close.Last"))
   
-  # 获取历史数据的最后一个价格值
-  last_historical_price <- tail(historical_data$Close.Last, 1)
-
   # 计算预测值的逆差分
+  last_historical_price <- head(historical_data$Close.Last, 1)
   forecasted_diff <- forecast_values$mean
-  forecasted_price <- last_historical_price + cumsum(forecasted_diff)
-
-    
-  # 创建包含历史和预测数据的数据框
+  forecasted_price <- cumsum(c(last_historical_price, forecasted_diff[-1])) 
+  
   forecast_data <- data.frame(
     Date = c(historical_data$Date, future_dates[-1]),
     Price = c(historical_data$Close.Last, forecasted_price[-1]),
@@ -487,14 +461,6 @@ for (company in company_list) {
   # 创建ggplot对象并绘制折线图
   p <- ggplot(forecast_data, aes(x = Date, y = Price, color = Type)) +
     geom_line() +
-    # 添加连接历史数据最后一天和预测数据第一天的线段
-    geom_segment(data = data.frame(
-      x = last_observation, 
-      y = last_historical_price, 
-      xend = future_dates[2], 
-      yend = forecasted_price[2]), 
-      aes(x = x, y = y, xend = xend, yend = yend), 
-      color = "blue") +
     labs(title = paste("Stock Price Forecast for", company),
          x = "Date",
          y = "Stock Price") +
@@ -503,6 +469,8 @@ for (company in company_list) {
   
   print(p)
 }
+
+
 
 
 ```
@@ -513,22 +481,20 @@ for (company in company_list) {
 library(ggplot2)
 library(forecast)
 
-forecast_period <- 10  # 预测未来10天
-history_period <- 20   # 显示过去20天的历史数据
+forecast_period <- 180
 
 for (company in company_list) {
-  forecast_info <- company_forecasts_increase[[company]]
+  forecast_info <- company_forecasts[[company]]
   
   last_observation <- max(stock_data$Date[stock_data$Company == company])
   future_dates <- seq(from = last_observation + 1, by = "days", length.out = forecast_period)
   
   forecast_values <- forecast(forecast_info$Model, h = forecast_period)
   
-  # 选取最近的历史数据，限制为20天
-  historical_data <- subset(stock_data, Company == company & Date > (last_observation - history_period), select = c("Date", "Close.Last"))
-
+  historical_data <- subset(stock_data, Company == company, select = c("Date", "Close.Last"))
+  
   # 计算未来股价，基于最后一个已知股价和预测增长率
-  last_historical_price <- tail(historical_data$Close.Last, 1)
+  last_historical_price <- head(historical_data$Close.Last, 1)
   forecasted_growth_rates <- forecast_values$mean
   forecasted_prices <- last_historical_price * cumprod(1 + forecasted_growth_rates)
 
@@ -538,18 +504,9 @@ for (company in company_list) {
     Type = c(rep("Historical", nrow(historical_data)), rep("Forecasted", length(future_dates) - 1)),
     Company = company
   )
-
-  # 创建ggplot对象并绘制折线图
+  
   p <- ggplot(forecast_data, aes(x = Date, y = Price, color = Type)) +
     geom_line() +
-    # 添加连接历史数据最后一天和预测数据第一天的线段
-    geom_segment(data = data.frame(
-      x = max(historical_data$Date), 
-      y = last_historical_price, 
-      xend = future_dates[2], 
-      yend = forecasted_prices[2]), 
-      aes(x = x, y = y, xend = xend, yend = yend), 
-      color = "blue") +
     labs(title = paste("Stock Price Forecast for", company),
          x = "Date",
          y = "Stock Price") +
@@ -558,7 +515,6 @@ for (company in company_list) {
   
   print(p)
 }
-
 
 ```
 
