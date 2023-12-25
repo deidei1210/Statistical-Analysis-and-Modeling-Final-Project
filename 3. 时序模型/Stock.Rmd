@@ -202,7 +202,7 @@ plots_list
 # 为每个公司绘制OpenIncreaseRate和涨幅的散点图
 ggplot(stock_data, aes(x = OpenIncreaseRate, y = IncreaseRate, color = Company)) +
   geom_point() +
-  labs(title = "Scatter Plot of OpenIncreaseRate vs. Return", x = "OpenIncreaseRate", y = "IncreaseRate")
+  labs(title = "Scatter Plot of OpenIncreaseRate vs. IncreaseRate", x = "OpenIncreaseRate", y = "IncreaseRate")
 
 ```
 
