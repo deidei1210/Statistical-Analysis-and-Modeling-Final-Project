@@ -37,12 +37,23 @@ stock_data <- stock_data %>%
 stock_data <- distinct(stock_data)
 # 只关心'Company'和'Date'列的重复值
 stock_data <- distinct(stock_data, Company, Date, .keep_all = TRUE)
+
+# 计算每个公司的开盘价相对于上一个交易日的涨幅
+stock_data <- stock_data %>%
+  group_by(Company) %>%
+  arrange(Company, Date) %>%
+  mutate(OpenIncreaseRate = ((Open-lag(Close.Last)) / lag(Close.Last)))
+
+
 # 计算每个公司的日收益率
 stock_data <- stock_data %>%
   group_by(Company) %>%
   arrange(Company, Date) %>%
   mutate(IncreaseRate = ((Close.Last-lag(Close.Last)) / lag(Close.Last)))
 
+# 处理缺失值
+# 这里的策略是删除任何包含缺失值的行
+stock_data <- na.omit(stock_data)
 
 # 为每个公司绘制箱线图（以'Close.Last'为例）
 ggplot(stock_data, aes(x = Company, y = Close.Last)) +
@@ -64,10 +75,10 @@ ggplot(stock_data, aes(x = Company, y = Low)) +
 
 ```{r}
 
-# 为每个公司绘制股价和交易量的散点图
-ggplot(stock_data, aes(x = Volume, y = Close.Last, color = Company)) +
+# 为每个公司绘制和交易量的散点图
+ggplot(stock_data, aes(x = Volume, y = IncreaseRate, color = Company)) +
   geom_point() +
-  labs(title = "Scatter Plot of Volume vs. Close Price", x = "Volume", y = "Close/Last Price")
+  labs(title = "Scatter Plot of Volume vs. IncreaceRate", x = "Volume", y = "IncreaceRate")
 
 
 ```
@@ -187,6 +198,13 @@ plots_list
 
 ```
 
+```{r}
+# 为每个公司绘制OpenIncreaseRate和涨幅的散点图
+ggplot(stock_data, aes(x = OpenIncreaseRate, y = IncreaseRate, color = Company)) +
+  geom_point() +
+  labs(title = "Scatter Plot of OpenIncreaseRate vs. Return", x = "OpenIncreaseRate", y = "IncreaseRate")
+
+```
 
 
 ```{r}
