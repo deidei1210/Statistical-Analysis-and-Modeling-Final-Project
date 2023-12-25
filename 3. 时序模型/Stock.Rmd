@@ -501,7 +501,9 @@ for (company in company_list) {
     scale_color_manual(values = c("blue", "red")) +
     theme_minimal()
   
-  print(p)
+ # 输出图表为PNG文件
+  file_name <- paste0("Stock_Price_Forecast_normal_", company, ".png")
+  ggsave(file_name, plot = p, width = 10, height = 6, dpi = 300)
 }
 
 
@@ -556,7 +558,9 @@ for (company in company_list) {
     scale_color_manual(values = c("blue", "red")) +
     theme_minimal()
   
-  print(p)
+ # 输出图表为PNG文件
+  file_name <- paste0("Stock_Price_Forecast_increase_", company, ".png")
+  ggsave(file_name, plot = p, width = 10, height = 6, dpi = 300)
 }
 
 
@@ -737,7 +741,9 @@ for (company in unique(all_company_predictions_df$Company)) {
     scale_color_manual(values = c("blue", "red")) +
     theme_minimal()
   
-  print(p)
+ # 输出图表为PNG文件
+  file_name <- paste0("Stock_Price_Forecast_LSTM_", company, ".png")
+  ggsave(file_name, plot = p, width = 10, height = 6, dpi = 300)
 }
 
 
