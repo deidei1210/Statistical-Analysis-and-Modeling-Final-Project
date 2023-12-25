@@ -59,6 +59,7 @@ ggplot(stock_data, aes(x = Company, y = Low)) +
   geom_boxplot() +
   labs(title = "Boxplot of The Lowest Prices for Each Company", x = "Company", y = "The Lowest Price")
 ```
+
 ```{r}
 
 # 为每个公司绘制股价和交易量的散点图
@@ -68,6 +69,7 @@ ggplot(stock_data, aes(x = Volume, y = Close.Last, color = Company)) +
 
 
 ```
+
 ```{r}
 # 可视化所有公司股价随时间的变化
 ggplot(stock_data, aes(x = Date, y = Close.Last, color = Company)) +
@@ -99,6 +101,7 @@ for (company in unique(stock_data$Company)) {
 }
 
 ```
+
 ```{r}
 # 为相关性分析准备数据
 stock_data_wide <- stock_data %>%
@@ -178,7 +181,12 @@ plots_list <- lapply(companies, function(company) {
     theme_minimal()
 })
 plots_list
+
+
 ```
+
+
+
 ```{r}
 library(dplyr)
 library(tseries)
@@ -232,13 +240,15 @@ head(diff_stock_data)
 
 ```
 
-```{r}
+#普通的Arima模型
+```{r} 
+
 library(forecast)
 library(dplyr)
 library(tseries)
 
 company_list <- unique(diff_stock_data$Company)
-company_forecasts <- list()
+company_forecasts_normal <- list()
 
 for (company in company_list) {
   company_data <- filter(diff_stock_data, Company == company)
@@ -261,7 +271,7 @@ for (company in company_list) {
 
     forecast_result <- forecast(fit, h = length(test_set))
 
-    company_forecasts[[company]] <- list(
+    company_forecasts_normal[[company]] <- list(
       Model = fit,
       Forecast = forecast_result,
       Accuracy = if (length(forecast_result$mean) == length(test_set)) {
@@ -271,7 +281,7 @@ for (company in company_list) {
                  }
     )
   } else {
-    company_forecasts[[company]] <- list(
+    company_forecasts_normal[[company]] <- list(
       Model = NA,
       Forecast = NA,
       Accuracy = NA
@@ -281,7 +291,7 @@ for (company in company_list) {
 
 # 打印每个公司的预测结果
 for (company in company_list) {
-  forecast_info <- company_forecasts[[company]]
+  forecast_info <- company_forecasts_normal[[company]]
   cat("公司:", company, "\n")
   cat("模型信息:\n")
   print(forecast_info$Model)
@@ -294,7 +304,11 @@ for (company in company_list) {
 
 
 ```
-```{r}
+
+
+#时间序列窗口的Arima模型 
+```{r}  
+
 library(forecast)
 library(dplyr)
 library(tseries)
@@ -341,8 +355,72 @@ for (company in company_list) {
 
 ```
 
+#增长率的Arima模型
+```{r}
+library(forecast)
+library(dplyr)
+library(tseries)
+
+# 确保您的数据集名称是stock_data，并且有'Company'和'increaseRate'两列
+company_list <- unique(stock_data$Company)
+company_forecasts_increase <- list()
+
+for (company in company_list) {
+  company_data <- filter(stock_data, Company == company)
+  
+  # 使用增长率创建时间序列
+  ts_data <- ts(rev(company_data$increaseRate))
+
+  # 检查数据是否平稳
+  if (adf.test(ts_data, alternative = "stationary")$p.value > 0.05) {
+    ts_data <- diff(ts_data, differences = 1)
+  }
+
+  # 设置训练集和测试集的大小
+  train_size <- floor(length(ts_data) * 0.85)
+  train_set <- ts_data[1:train_size]
+  test_set <- ts_data[(train_size + 1):length(ts_data)]
+
+  if (length(test_set) > 0) {
+    fit <- auto.arima(train_set, stepwise = FALSE, approximation = FALSE)
+
+    forecast_result <- forecast(fit, h = length(test_set))
+
+    company_forecasts_increase[[company]] <- list(
+      Model = fit,
+      Forecast = forecast_result,
+      Accuracy = if (length(forecast_result$mean) == length(test_set)) {
+                   accuracy(forecast_result, test_set)
+                 } else {
+                   NA
+                 }
+    )
+  } else {
+    company_forecasts_increase[[company]] <- list(
+      Model = NA,
+      Forecast = NA,
+      Accuracy = NA
+    )
+  }
+}
+
+# 打印每个公司的预测结果
+for (company in company_list) {
+  forecast_info <- company_forecasts_increase[[company]]
+  cat("公司:", company, "\n")
+  cat("模型信息:\n")
+  print(forecast_info$Model)
+  cat("预测结果:\n")
+  print(forecast_info$Forecast)
+  cat("精度信息:\n")
+  print(forecast_info$Accuracy)
+  cat("\n")
+}
+
+```
 
 
+#根据差值预测未来股票值
 ```{r}
 library(ggplot2)
 # 确保导入forecast包
@@ -393,6 +471,230 @@ for (company in company_list) {
 }
 
 
+
+
+```
+
+
+#根据增长率预测未来股票值
+```{r}
+library(ggplot2)
+library(forecast)
+
+forecast_period <- 180
+
+for (company in company_list) {
+  forecast_info <- company_forecasts[[company]]
+  
+  last_observation <- max(stock_data$Date[stock_data$Company == company])
+  future_dates <- seq(from = last_observation + 1, by = "days", length.out = forecast_period)
+  
+  forecast_values <- forecast(forecast_info$Model, h = forecast_period)
+  
+  historical_data <- subset(stock_data, Company == company, select = c("Date", "Close.Last"))
+  
+  # 计算未来股价，基于最后一个已知股价和预测增长率
+  last_historical_price <- head(historical_data$Close.Last, 1)
+  forecasted_growth_rates <- forecast_values$mean
+  forecasted_prices <- last_historical_price * cumprod(1 + forecasted_growth_rates)
+
+  forecast_data <- data.frame(
+    Date = c(historical_data$Date, future_dates[-1]),
+    Price = c(historical_data$Close.Last, forecasted_prices[-1]),
+    Type = c(rep("Historical", nrow(historical_data)), rep("Forecasted", length(future_dates) - 1)),
+    Company = company
+  )
+  
+  p <- ggplot(forecast_data, aes(x = Date, y = Price, color = Type)) +
+    geom_line() +
+    labs(title = paste("Stock Price Forecast for", company),
+         x = "Date",
+         y = "Stock Price") +
+    scale_color_manual(values = c("blue", "red")) +
+    theme_minimal()
+  
+  print(p)
+}
+
+```
+
+#LSTM
+```{r}
+library(reticulate)
+use_python("D:/anaconda3/envs/emotion/python.exe", required = TRUE) 
+
+library(keras)
+library(dplyr)
+
+# 设置LSTM模型的参数
+look_back <- 60
+batch_size <- 1
+
+# 函数来创建数据集
+create_dataset <- function(data, look_back, forecast_horizon) {
+  x_data <- list()
+  y_data <- list()
+  for (i in 1:(length(data) - look_back - forecast_horizon + 1)) {
+    x_data[[i]] <- data[i:(i + look_back - 1)]
+    y_data[[i]] <- data[(i + look_back):(i + look_back + forecast_horizon - 1)]
+  }
+  return(list(X = array(unlist(x_data), dim = c(length(x_data), look_back, 1)), 
+              Y = matrix(unlist(y_data), nrow = length(x_data), byrow = TRUE)))
+}
+
+
+# 为每个公司创建和训练LSTM模型
+company_list <- unique(stock_data$Company)
+company_forecasts_LSTM <- list()
+
+for (company in company_list) {
+  # 获取并处理数据
+
+  # 过滤特定公司的数据并且选择 `increaseRate` 列
+  company_data <- stock_data %>%
+    filter(Company == company) %>%
+    pull(increaseRate) 
+
+  # 确保 `increaseRate` 列是数值型
+  if (!is.numeric(company_data)) {
+    company_data <- as.numeric(company_data)
+  }
+  
+  # 标准化数据
+  company_data_scaled <- scale(company_data)
+  
+  # 确保返回的是向量
+  if (!is.vector(company_data_scaled)) {
+    company_data_scaled <- as.vector(company_data_scaled)
+  }
+
+  forecast_horizon <- 180  # 未来半年的天数
+  dataset <- create_dataset(company_data, look_back,forecast_horizon)
+  
+  model <- keras_model_sequential() %>%
+    layer_lstm(units = 50, input_shape = c(look_back, 1), return_sequences = TRUE) %>%
+    layer_dropout(rate = 0.2) %>%
+    layer_lstm(units = 50, return_sequences = TRUE) %>%
+    layer_dropout(rate = 0.2) %>%
+    layer_lstm(units = 50) %>%
+    layer_dropout(rate = 0.2) %>%
+    layer_dense(units = forecast_horizon)  # 修改为预测未来180天
+  
+  model %>% compile(
+    loss = 'mean_squared_error',
+    optimizer = optimizer_adam()
+  )
+
+
+  # 训练模型
+  model %>% fit(
+    dataset$X, dataset$Y,
+    epochs = 1,
+    batch_size = batch_size,
+    verbose = 2
+  )
+
+  # 存储每个公司的模型
+  company_forecasts_LSTM[[company]] <- model
+  print(company_forecasts_LSTM[[company]])
+}
+
+```
+#根据LSTM预测
+```{r}
+# 初始化一个列表来存储预测结果
+company_predictions <- list()
+all_company_predictions_df <- data.frame()
+# 遍历每个公司进行预测
+for (company in company_list) {
+  # 获取模型
+  model <- company_forecasts_LSTM[[company]]
+  
+  # 准备预测数据
+  company_data <- stock_data %>%
+    filter(Company == company) %>%
+    arrange(desc(Date)) %>%  # 确保数据是按日期降序排列的
+    pull(increaseRate)
+    
+  # 如果数据不足以进行预测，则跳过
+  if (length(company_data) < look_back) {
+    company_predictions[[company]] <- NA
+    next
+  }
+  
+  # 使用最新的look_back天数据进行预测
+  predict_data <- head(company_data, look_back)
+  
+  # 标准化数据
+  predict_data_scaled <- scale(predict_data)
+  
+  # 转换为模型需要的格式
+  predict_data_formatted <- array(predict_data_scaled, dim = c(1, look_back, 1))
+  
+  # 进行预测
+  prediction <- model %>% predict(predict_data_formatted)
+  
+  # 将预测结果转换为数据框，并添加公司名称
+  prediction_df <- data.frame(Company = company, t(prediction))
+  
+  # 将当前公司的预测结果添加到汇总的数据框中
+  all_company_predictions_df <- rbind(all_company_predictions_df, prediction_df)
+}
+
+# 查看汇总的预测结果数据框
+print(all_company_predictions_df)
+```
+#画图
+```{r}
+library(ggplot2)
+library(dplyr)
+
+forecast_period <- 180
+
+# 确保 all_company_predictions_df 已经包含 Company 列
+if (!"Company" %in% names(all_company_predictions_df)) {
+  stop("all_company_predictions_df 中缺少 Company 列")
+}
+
+# 遍历每个公司进行绘图
+for (company in unique(all_company_predictions_df$Company)) {
+  # 获取历史数据和最后一天股价
+  historical_data <- stock_data %>%
+    filter(Company == company) %>%
+    select(Date, Close.Last)
+  
+  last_historical_price <- tail(historical_data$Close.Last, 1)
+  
+  # 获取预测增长率
+  forecasted_growth_rates <- all_company_predictions_df %>%
+    filter(Company == company) %>%
+    select(-Company)
+
+  # 计算未来股价
+  forecasted_prices <- last_historical_price * cumprod(1 + as.matrix(forecasted_growth_rates))
+
+  # 创建未来日期
+  last_observation <- max(historical_data$Date)
+  future_dates <- seq(from = last_observation + 1, by = "days", length.out = forecast_period)
+  
+  # 合并历史和预测数据
+  forecast_data <- data.frame(
+    Date = c(historical_data$Date, future_dates),
+    Price = c(historical_data$Close.Last, forecasted_prices),
+    Type = c(rep("Historical", nrow(historical_data)), rep("Forecasted", forecast_period))
+  )
+  
+  # 绘制股价走势图
+  p <- ggplot(forecast_data, aes(x = Date, y = Price, color = Type)) +
+    geom_line() +
+    labs(title = paste("Stock Price Forecast for", company),
+         x = "Date",
+         y = "Stock Price") +
+    scale_color_manual(values = c("blue", "red")) +
+    theme_minimal()
+  
+  print(p)
+}
 
 
 ```
