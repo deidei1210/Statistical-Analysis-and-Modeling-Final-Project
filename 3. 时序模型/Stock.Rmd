@@ -37,9 +37,11 @@ stock_data <- stock_data %>%
 stock_data <- distinct(stock_data)
 # 只关心'Company'和'Date'列的重复值
 stock_data <- distinct(stock_data, Company, Date, .keep_all = TRUE)
-#计算每天股票的涨幅
+# 计算每个公司的日收益率
 stock_data <- stock_data %>%
-  mutate(increaseRate = (Close.Last - Open) / Open)
+  group_by(Company) %>%
+  arrange(Company, Date) %>%
+  mutate(IncreaseRate = ((Close.Last-lag(Close.Last)) / lag(Close.Last)))
 
 
 # 为每个公司绘制箱线图（以'Close.Last'为例）
