@@ -220,8 +220,7 @@ company_forecasts_normal <- list()
 for (company in company_list) {
   company_data <- filter(stock_data, Company == company)
   
-  # 反转时间序列，使得最新的数据在最后
-  ts_data <- ts(rev(company_data$Close.Last))
+  ts_data <- ts(company_data$Close.Last)
 
 
   # 设置训练集和测试集的大小
@@ -417,7 +416,7 @@ for (company in company_list) {
 
 ```
 
-
+#思路：可以先带训练集使用auto.arima获得最佳参数，然后再直接不带训练集进行预测
 
 #根据差值预测未来股票值
 ```{r}
