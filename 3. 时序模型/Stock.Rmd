@@ -207,82 +207,25 @@ ggplot(stock_data, aes(x = OpenIncreaseRate, y = IncreaseRate, color = Company))
 ```
 
 
-```{r}
-library(dplyr)
-library(tseries)
-library(lubridate)
-
-# 将日期列转换为日期对象
-stock_data$Date <- ymd(stock_data$Date)
-
-# 初始化一个空的数据框来存储差分后的时间序列
-diff_stock_data <- data.frame()
-
-# 对每个公司进行循环
-company_list <- unique(stock_data$Company)
-for(company in company_list) {
-  # 提取当前公司的数据
-  company_data <- subset(stock_data, Company == company)
-  
-  # 将收盘价转换为时间序列对象
-  ts_data <- ts(company_data$Close.Last)
-  
-  # 进行差分直到时间序列平稳
-  diff_ts <- ts_data
-  diff_count <- 0
-  repeat {
-    adf_test_results <- adf.test(diff_ts, alternative = "stationary")
-    if (adf_test_results$p.value < 0.05) {
-      break
-    } else {
-      diff_ts <- diff(diff_ts)
-      diff_count <- diff_count + 1
-    }
-    
-    if (diff_count > 10) {
-      break
-    }
-  }
-  
-# 将差分后的时间序列转换为普通向量
-diff_ts_vector <- as.vector(diff_ts)
-
-# 调整Date向量以匹配差分后的时间
-adjusted_dates <- company_data$Date[-seq_len(diff_count)]
-
-# 将差分后的数据添加到数据框
-diff_stock_data <- rbind(diff_stock_data, data.frame(Date = adjusted_dates, Company = company, DiffClose = diff_ts_vector))
-
-}
-
-# 查看结果
-head(diff_stock_data)
-
-```
-
-#普通的Arima模型
+#增长量的Arima模型
 ```{r} 
 
 library(forecast)
 library(dplyr)
 library(tseries)
 
-company_list <- unique(diff_stock_data$Company)
+company_list <- unique(stock_data$Company)
 company_forecasts_normal <- list()
 
 for (company in company_list) {
-  company_data <- filter(diff_stock_data, Company == company)
+  company_data <- filter(stock_data, Company == company)
   
   # 反转时间序列，使得最新的数据在最后
-  ts_data <- ts(rev(company_data$DiffClose))
+  ts_data <- ts(rev(company_data$Close.Last))
 
-  # 检查数据是否平稳
-  if (adf.test(ts_data, alternative = "stationary")$p.value > 0.05) {
-    ts_data <- diff(ts_data, differences = 1)
-  }
 
   # 设置训练集和测试集的大小
-  train_size <- floor(length(ts_data) * 0.85)
+  train_size <- floor(length(ts_data) * 0.8)
   train_set <- ts_data[1:train_size]
   test_set <- ts_data[(train_size + 1):length(ts_data)]
 
@@ -325,6 +268,47 @@ for (company in company_list) {
 
 ```
 
+#增长量Arima模型-无测试集
+```{r}
+library(forecast)
+library(dplyr)
+library(tseries)
+
+# 假设 stock_data 是您已经加载的数据框，它至少有 'Company' 和 'Close.Last' 列
+company_list <- unique(stock_data$Company)
+company_forecasts_10day <- list()
+
+for (company in company_list) {
+  company_data <- filter(stock_data, Company == company)
+  
+  # 反转时间序列，使得最新的数据在最后
+  ts_data <- ts(company_data$Close.Last)
+  
+  # 使用所有可用数据训练模型
+  fit <- auto.arima(ts_data, stepwise = FALSE, approximation = FALSE)
+  
+  # 预测未来10天
+  forecast_result <- forecast(fit, h = 10)
+
+  # 存储模型和预测结果
+  company_forecasts_10day[[company]] <- list(
+    Model = fit,
+    Forecast = forecast_result
+  )
+}
+
+# 打印每个公司未来10天的预测结果
+for (company in company_list) {
+  forecast_info <- company_forecasts_10day[[company]]
+  cat("公司:", company, "\n")
+  cat("模型信息:\n")
+  print(forecast_info$Model)
+  cat("未来10天的预测结果:\n")
+  print(forecast_info$Forecast)
+  cat("\n")
+}
+
+```
 
 #时间序列窗口的Arima模型 
 ```{r}  
@@ -333,20 +317,16 @@ library(forecast)
 library(dplyr)
 library(tseries)
 
-company_list <- unique(diff_stock_data$Company)
+company_list <- unique(stock_data$Company)
 company_forecasts <- list()
 
-window_size <- 30  # 窗口大小，可以根据需要调整
+window_size <- 80  # 窗口大小，可以根据需要调整
 forecast_length <- 1  # 预测步长，通常为1
 
 for (company in company_list) {
-  company_data <- filter(diff_stock_data, Company == company)
-  ts_data <- ts(rev(company_data$DiffClose))
+  company_data <- filter(stock_data, Company == company)
+  ts_data <- ts(rev(company_data$Close.Last))
 
-  # 确保时间序列是平稳的
-  if (adf.test(ts_data, alternative = "stationary")$p.value > 0.05) {
-    ts_data <- diff(ts_data, differences = 1)
-  }
 
   total_length <- length(ts_data)
   forecasts <- list()
@@ -391,11 +371,9 @@ for (company in company_list) {
   # 使用增长率创建时间序列
   ts_data <- ts(rev(company_data$increaseRate))
 
-  # 检查数据是否平稳
-  if (adf.test(ts_data, alternative = "stationary")$p.value > 0.05) {
-    ts_data <- diff(ts_data, differences = 1)
-  }
 
+  Acf(ts_data)
+  Pacf(ts_data)
   # 设置训练集和测试集的大小
   train_size <- floor(length(ts_data) * 0.85)
   train_set <- ts_data[1:train_size]
@@ -447,13 +425,13 @@ library(ggplot2)
 library(forecast)
 library(dplyr)
 
-forecast_period <- 10
+forecast_period <- 20
 history_period <- 20  # 设置历史数据长度为20天
 
 # 遍历每个公司进行预测并绘制图表
 for (company in company_list) {
   # 获取当前公司的模型信息
-  forecast_info <- company_forecasts_normal[[company]]
+  forecast_info <- company_forecasts_10day[[company]]
   
   # 确定历史数据的最后一个时间点作为起始点
   last_observation <- max(stock_data$Date[stock_data$Company == company])
@@ -473,7 +451,7 @@ for (company in company_list) {
 
   # 计算预测值的逆差分
   forecasted_diff <- forecast_values$mean
-  forecasted_price <- last_historical_price + cumsum(forecasted_diff)
+  forecasted_price <- forecasted_diff
 
     
   # 创建包含历史和预测数据的数据框
@@ -515,7 +493,7 @@ for (company in company_list) {
 library(ggplot2)
 library(forecast)
 
-forecast_period <- 10  # 预测未来10天
+forecast_period <- 20  # 预测未来20天
 history_period <- 20   # 显示过去20天的历史数据
 
 for (company in company_list) {
