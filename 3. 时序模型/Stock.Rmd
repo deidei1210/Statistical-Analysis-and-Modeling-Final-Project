@@ -131,7 +131,21 @@ print(corr_matrix)
 ```
 
 ```{r}
+
+library(forecast)
+library(ggplot2)
+library(dplyr)
+library(tseries)
+
 # 对每个公司的数据进行季节性分解
+results <- data.frame(Company = character(),
+                      Seasonality_Strength = numeric(),
+                      ACF_Value = numeric(),
+                      PACF_Value = numeric(),
+                      p_value = numeric(),
+                      stringsAsFactors = FALSE)
+
+
 for (company in unique(stock_data$Company)) {
   company_data <- filter(stock_data, Company == company)
 
@@ -153,7 +167,35 @@ for (company in unique(stock_data$Company)) {
     labs(title = paste(company, "Seasonal Variation in Stock Price"), x = "Date", y = "Seasonality") +
     theme(legend.position = "bottom")
     print(pic)
+    
+    
+      # 计算季节性强度
+  seasonality_strength <- 1 - var(decomposed$time.series[, "remainder"]) / var(decomposed$time.series[, "seasonal"] + decomposed$time.series[, "remainder"])
+  
+  # 自相关和偏自相关
+  acf_value <- acf(ts_data, plot = FALSE)$acf[2]  # 取第一个非自相关的值
+  pacf_value <- pacf(ts_data, plot = FALSE)$acf[2]
+  
+  # Augmented Dickey-Fuller Test 来检查季节性单位根
+  adf_test <- adf.test(ts_data, alternative = "stationary")
+  
+  # 存储结果
+  results <- rbind(results, data.frame(Company = company,
+                                       Seasonality_Strength = seasonality_strength,
+                                       ACF_Value = acf_value,
+                                       PACF_Value = pacf_value,
+                                       p_value = adf_test$p.value))
 }
+
+# 输出结果
+print(results)
+# 决定是否使用SARIMA模型
+# 如果季节性强度显著，ACF/PACF表明季节性滞后，且单位根检验p值小于显著性水平（通常是0.05）
+# 则可能需要使用SARIMA模型
+results %>%
+  mutate(Use_SARIMA = ifelse(Seasonality_Strength > 0.5 & p_value < 0.05, TRUE, FALSE)) %>%
+  select(Company, Use_SARIMA) %>%
+  print()
 
 ```
 
@@ -199,10 +241,25 @@ plots_list
 ```
 
 ```{r}
+library(ggplot2)
+
 # 为每个公司绘制OpenIncreaseRate和涨幅的散点图
 ggplot(stock_data, aes(x = OpenIncreaseRate, y = IncreaseRate, color = Company)) +
   geom_point() +
   labs(title = "Scatter Plot of OpenIncreaseRate vs. IncreaseRate", x = "OpenIncreaseRate", y = "IncreaseRate")
+
+# 计算每个公司属性的相关系数
+correlation_data <- stock_data %>%
+  group_by(Company) %>%
+  summarize(correlation = cor(OpenIncreaseRate, IncreaseRate, use = "complete.obs")) %>%
+  na.omit()
+
+# 创建一个单独的条形图来显示相关系数
+ggplot(correlation_data, aes(x = Company, y = correlation, fill = Company)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Correlation Coefficient between OpenIncreaseRate and IncreaseRate by Company", x = "Company", y = "Correlation") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # 若公司名称较长，可调整文本角度以便阅读
+
 
 ```
 
