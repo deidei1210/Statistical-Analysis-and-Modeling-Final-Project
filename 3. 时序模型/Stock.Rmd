@@ -296,6 +296,7 @@ library(tseries)
 company_list <- unique(stock_data$Company)
 best_pdq_params <- list()
 company_forecasts_future <- list()
+model_performance <- list()
 
 for (company in company_list) {
   company_data <- filter(stock_data, Company == company)
@@ -309,12 +310,19 @@ for (company in company_list) {
 
   # 使用训练集和测试集确定最佳 pdq
   if (length(test_set) > 0) {
-    fit <- auto.arima(train_set, stepwise = FALSE, approximation = FALSE)   #判断Arima模型的参数值
+    fit <- auto.arima(train_set, stepwise = FALSE, approximation = FALSE)
+    
+    # 在测试集上验证模型性能
+    test_forecast <- forecast(fit, h = length(test_set))
+    model_performance[[company]] <- accuracy(test_forecast, test_set)
+    
+    #判断Arima模型的参数值
     best_pdq_params[[company]] <- arimaorder(fit)
   } else {
     best_pdq_params[[company]] <- c(NA, NA, NA)
   }
   print(best_pdq_params[[company]])
+  print(model_performance[[company]])
 }
 
 
@@ -466,12 +474,12 @@ library(ggplot2)
 
 company_list <- unique(stock_data$Company)
 best_pdq_params_increase <- list()
-
+model_performance <- list()
 
 for (company in company_list) {
   company_data <- filter(stock_data, Company == company)
   
-  ts_data <- ts(company_data$increaseRate)
+  ts_data <- ts(company_data$IncreaseRate)
 
   # 设置训练集和测试集的大小
   train_size <- floor(length(ts_data) * 0.8)
@@ -482,10 +490,16 @@ for (company in company_list) {
   if (length(test_set) > 0) {
     fit <- auto.arima(train_set, stepwise = FALSE, approximation = FALSE)
     best_pdq_params_increase[[company]] <- arimaorder(fit)
+    
+    # 在测试集上验证模型性能
+    test_forecast <- forecast(fit, h = length(test_set))
+    model_performance[[company]] <- accuracy(test_forecast, test_set)
+
   } else {
     best_pdq_params_increase[[company]] <- c(NA, NA, NA)
   }
   print(best_pdq_params_increase[[company]])
+  print(model_performance[[company]])
 }
 
 
@@ -503,7 +517,7 @@ library(ggplot2)
 # 使用全部数据和最佳参数进行预测
 for (company in company_list) {
   company_data <- filter(stock_data, Company == company)
-  ts_data <- ts(company_data$increaseRate)
+  ts_data <- ts(company_data$IncreaseRate)
 
   # 检索最佳参数
   pdq <- best_pdq_params_increase[[company]]
