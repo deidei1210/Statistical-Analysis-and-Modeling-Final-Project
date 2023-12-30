@@ -314,6 +314,77 @@ ggplot(correlation_data, aes(x = Company, y = correlation, fill = Company)) +
 
 
 ```
+#使用人工方式获取增长量最佳模型
+```{r}
+library(forecast)
+library(dplyr)
+library(tseries)
+
+company_list <- unique(stock_data$Company)
+best_model_info <- list()
+
+for (company in company_list) {
+  company_data <- filter(stock_data, Company == company)
+  ts_data <- ts(company_data$Close.Last)
+
+  # 设置训练集和测试集的大小
+  train_size <- floor(length(ts_data) * 0.8)
+  train_set <- ts_data[1:train_size]
+  test_set <- ts_data[(train_size + 1):length(ts_data)]
+  
+  print(head(train_set))
+
+  best_model_aic <- Inf
+  best_model <- NULL
+  best_pdq <- c(NA, NA, NA)
+
+  # 定义p, d, q的范围
+  p_range <- 0:6
+  d_range <- 0:3
+  q_range <- 0:6
+
+  for (p in p_range) {
+    for (d in d_range) {
+      for (q in q_range) {
+        try({
+          model <- Arima(train_set, order=c(p, d, q))
+          aic_value <- AIC(model)
+          
+          if (aic_value < best_model_aic) {
+            best_model_aic <- aic_value
+            best_model <- model
+            best_pdq <- c(p, d, q)
+          }
+        }, silent = TRUE)
+      }
+    }
+  }
+
+  # 使用最佳模型对测试集进行预测
+  forecasted_values <- forecast(best_model, h = length(test_set))
+  # 计算最佳模型的性能指标
+  model_metrics <- accuracy(forecasted_values, test_set)
+
+  # 执行Ljung-Box检验
+  lb_test <- Box.test(residuals(best_model), type = "Ljung-Box")
+  
+  best_model_info[[company]] <- list(
+    PDQ = best_pdq,
+    AIC = best_model_aic,
+    Metrics = model_metrics,
+    LjungBoxTest = lb_test
+  )
+
+  print(paste("Best model for", company, ": ARIMA", 
+              paste(best_pdq, collapse = ","), 
+              "AIC:", best_model_aic))
+  print(model_metrics)
+  print(paste("Ljung-Box Test p-value:", lb_test$p.value))
+}
+
+
+
+```
 
 
 #确定增长量的Arima模型
@@ -326,6 +397,8 @@ company_list <- unique(stock_data$Company)
 best_pdq_params <- list()
 company_forecasts_future <- list()
 model_performance <- list()
+model_aic_values <- list()
+
 
 for (company in company_list) {
   company_data <- filter(stock_data, Company == company)
@@ -344,13 +417,23 @@ for (company in company_list) {
     # 在测试集上验证模型性能
     test_forecast <- forecast(fit, h = length(test_set))
     model_performance[[company]] <- accuracy(test_forecast, test_set)
+    model_aic_values[[company]] <- fit$aic
+    
+        # 计算残差
+    residuals <- residuals(fit)
+    # 进行Ljung-Box检验
+    Box.test(residuals, type = "Ljung-Box")
     
     #判断Arima模型的参数值
     best_pdq_params[[company]] <- arimaorder(fit)
   } else {
     best_pdq_params[[company]] <- c(NA, NA, NA)
+    model_aic_values[[company]] <- NA
   }
-  print(best_pdq_params[[company]])
+ # 打印参数和性能指标
+  print(paste("Best model for", company, ": ARIMA", 
+              paste(best_pdq_params[[company]], collapse = ","), 
+              "AIC:", model_aic_values[[company]]))
   print(model_performance[[company]])
 }
 
