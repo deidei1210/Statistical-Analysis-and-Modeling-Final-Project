@@ -262,6 +262,36 @@ ggplot(grouped_data, aes(x = Company, y = AnnualizedVolatility,fill = Company)) 
        y = "Standard Deviation")
 
 ```
+```{r}
+library(dplyr)
+
+# 假设你的数据框中包含 Company 和 IncreaseRate 两列
+max_drawdown <- function(returns) {
+  max_so_far <- 0  #用于记录迄今为止的最大值。
+  drawdown <- rep(0, length(returns))
+  for (i in 2:length(returns)) {
+    max_so_far <- max(max_so_far, returns[i-1])#更新迄今为止的最大值
+    drawdown[i] <- (max_so_far - returns[i])/max_so_far
+  }
+  return(max(drawdown))
+}
+
+# 按照 Company 列进行分组，计算每个公司的最大回撤
+result <- stock_data %>% 
+  group_by(Company) %>% 
+  summarize(MaxDrawdown = max_drawdown(Close.Last))
+
+# 使用ggplot2绘制柱状图
+ggplot(result, aes(x = Company, y = MaxDrawdown,fill = Company)) +
+  geom_bar(stat = "identity") +
+  labs(title = "The max drawdown of each Company",
+       x = "Company",
+       y = "MaxDrawdown")
+
+# 输出结果
+print(result)
+
+```
 
 ```{r}
 library(ggplot2)
