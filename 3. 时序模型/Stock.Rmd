@@ -239,6 +239,24 @@ plots_list
 
 
 ```
+```{r}
+
+# 按照公司名称分组并计算每个组的收益率标准差
+grouped_data <- stock_data %>%
+  group_by(Company) %>%
+  summarize(StdDev = sd(IncreaseRate))
+
+# 打印结果
+print(grouped_data)
+
+# 使用ggplot2绘制柱状图
+ggplot(grouped_data, aes(x = Company, y = StdDev,fill = Company)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Standard Deviation of Returns by Company",
+       x = "Company",
+       y = "Standard Deviation")
+
+```
 
 ```{r}
 library(ggplot2)
@@ -286,7 +304,7 @@ for (company in company_list) {
 
   # 使用训练集和测试集确定最佳 pdq
   if (length(test_set) > 0) {
-    fit <- auto.arima(train_set, stepwise = FALSE, approximation = FALSE)
+    fit <- auto.arima(train_set, stepwise = FALSE, approximation = FALSE)   #判断Arima模型的参数值
     best_pdq_params[[company]] <- arimaorder(fit)
   } else {
     best_pdq_params[[company]] <- c(NA, NA, NA)
