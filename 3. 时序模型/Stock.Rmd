@@ -246,11 +246,16 @@ grouped_data <- stock_data %>%
   group_by(Company) %>%
   summarize(StdDev = sd(IncreaseRate))
 
+# 计算标准差并转换为年化波动率
+grouped_data <- grouped_data %>%
+  mutate(AnnualizedVolatility = StdDev * sqrt(252))
+
 # 打印结果
 print(grouped_data)
 
+
 # 使用ggplot2绘制柱状图
-ggplot(grouped_data, aes(x = Company, y = StdDev,fill = Company)) +
+ggplot(grouped_data, aes(x = Company, y = AnnualizedVolatility,fill = Company)) +
   geom_bar(stat = "identity") +
   labs(title = "Standard Deviation of Returns by Company",
        x = "Company",
