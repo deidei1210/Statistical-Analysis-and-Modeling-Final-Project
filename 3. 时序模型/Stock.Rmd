@@ -265,7 +265,6 @@ ggplot(grouped_data, aes(x = Company, y = AnnualizedVolatility,fill = Company)) 
 ```{r}
 library(dplyr)
 
-# 假设你的数据框中包含 Company 和 IncreaseRate 两列
 max_drawdown <- function(returns) {
   max_so_far <- 0  #用于记录迄今为止的最大值。
   drawdown <- rep(0, length(returns))
